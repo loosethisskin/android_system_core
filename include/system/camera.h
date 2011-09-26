@@ -95,6 +95,9 @@ enum {
 #ifdef QCOM_HARDWARE
     CAMERA_MSG_STATS_DATA       = 0x1000,
 #endif
+#ifdef OMAP_ENHANCEMENT_BURST_CAPTURE
+    CAMERA_MSG_COMPRESSED_BURST_IMAGE = 0x1000, // dataCallback
+#endif
 #endif
     CAMERA_MSG_ALL_MSGS = 0xFFFF
 };
