@@ -206,6 +206,14 @@ enum {
      */
     CAMERA_CMD_PREVIEW_DEINITIALIZATION = 257,
 #endif
+
+#ifdef OMAP_ENHANCEMENT
+    /**
+     * Extend camera_device_ops_t with extra callbacks.
+     * The arg1 and arg2 arguments should form pointer to camera_device_extended_ops_t.
+     */
+    CAMERA_CMD_SETUP_EXTENDED_OPERATIONS = 1024,
+#endif
 };
 
 /** camera fatal errors */
@@ -311,6 +319,18 @@ typedef struct camera_frame_metadata {
      * An array of the detected faces. The length is number_of_faces.
      */
     camera_face_t *faces;
+
+#ifdef OMAP_ENHANCEMENT_CPCAM
+    /**
+     * Exposure time in microseconds
+     */
+    int32_t exposure_time;
+
+    /**
+     * Analog gain (EV * 100)
+     */
+    int32_t analog_gain;
+#endif
 } camera_frame_metadata_t;
 
 __END_DECLS

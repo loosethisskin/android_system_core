@@ -256,6 +256,11 @@ enum {
 #ifdef OMAP_ENHANCEMENT
     NATIVE_WINDOW_SET_BUFFERS_LAYOUT        = 254,
 #endif
+#ifdef OMAP_ENHANCEMENT_CPCAM
+    NATIVE_WINDOW_UPDATE_AND_GET_CURRENT    = 255,
+    NATIVE_WINDOW_SET_BUFFERS_METADATA      = 256,
+    NATIVE_WINDOW_ADD_BUFFER_SLOT           = 257,
+#endif
 };
 
 /* parameter for NATIVE_WINDOW_[API_][DIS]CONNECT */
@@ -707,6 +712,21 @@ static inline int native_window_set_buffers_timestamp(
     return window->perform(window, NATIVE_WINDOW_SET_BUFFERS_TIMESTAMP,
             timestamp);
 }
+
+#ifdef OMAP_ENHANCEMENT_CPCAM
+/*
+ * native_window_set_buffers_metadata(..., void *data)
+ * frames queued after this call will be associated with this set of
+ * metadata.
+ */
+static inline int native_window_set_buffers_metadata(
+        struct ANativeWindow* window,
+        void *data)
+{
+    return window->perform(window, NATIVE_WINDOW_SET_BUFFERS_METADATA,
+            data);
+}
+#endif
 
 /*
  * native_window_set_scaling_mode(..., int mode)
