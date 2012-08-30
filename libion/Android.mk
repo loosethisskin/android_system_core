@@ -1,3 +1,5 @@
+ifneq ($(TARGET_HAS_CUSTOM_LIBION),true)
+
 LOCAL_PATH:= $(call my-dir)
 
 include $(CLEAR_VARS)
@@ -20,3 +22,5 @@ LOCAL_MODULE := iontest2
 LOCAL_MODULE_TAGS := optional tests
 LOCAL_SHARED_LIBRARIES := liblog
 include $(BUILD_EXECUTABLE)
+
+endif
