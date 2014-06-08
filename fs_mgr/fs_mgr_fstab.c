@@ -170,6 +170,21 @@ static int parse_flags(char *flags, struct flag_list *fl,
     return f;
 }
 
+int update_fallbacks(struct fstab_rec *recs, int index)
+{
+    int i;
+
+    for (i = index - 1; i >= 0; i--) {
+        if (!strcmp(recs[i].mount_point, recs[index].mount_point) &&
+            recs[i].fallback == NULL) {
+            recs[i].fallback = &recs[index];
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
 struct fstab *fs_mgr_read_fstab(const char *fstab_path)
 {
     FILE *fstab_file;
@@ -290,6 +305,7 @@ struct fstab *fs_mgr_read_fstab(const char *fstab_path)
         fstab->recs[cnt].partnum = flag_vals.partnum;
         fstab->recs[cnt].swap_prio = flag_vals.swap_prio;
         fstab->recs[cnt].zram_size = flag_vals.zram_size;
+        update_fallbacks(fstab->recs, cnt);
         cnt++;
     }
     fclose(fstab_file);
@@ -372,7 +388,8 @@ struct fstab_rec *fs_mgr_get_entry_for_mount_point(struct fstab *fstab, const ch
     for (i = 0; i < fstab->num_entries; i++) {
         int len = strlen(fstab->recs[i].mount_point);
         if (strncmp(path, fstab->recs[i].mount_point, len) == 0 &&
-            (path[len] == '\0' || path[len] == '/')) {
+            (path[len] == '\0' || path[len] == '/') &&
+            !(fstab->recs[i].fs_mgr_flags & MF_DISABLED)) {
             return &fstab->recs[i];
         }
     }
