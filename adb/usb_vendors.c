@@ -74,6 +74,8 @@
 #define VENDOR_ID_GIGABYTE      0x0414
 // Gigaset's USB Vendor ID
 #define VENDOR_ID_GIGASET       0x1E85
+// GIONEE's USB Vendor ID
+#define VENDOR_ID_GIONEE        0x271D
 // Google's USB Vendor ID
 #define VENDOR_ID_GOOGLE        0x18d1
 // Haier's USB Vendor ID
@@ -82,6 +84,8 @@
 #define VENDOR_ID_HARRIS        0x19A5
 // Hisense's USB Vendor ID
 #define VENDOR_ID_HISENSE       0x109b
+// Honeywell's USB Vendor ID
+#define VENDOR_ID_HONEYWELL     0x0c2e
 // HP's USB Vendor ID
 #define VENDOR_ID_HP            0x03f0
 // HTC's USB Vendor ID
@@ -158,6 +162,8 @@
 #define VENDOR_ID_SHARP         0x04dd
 // SK Telesys's USB Vendor ID
 #define VENDOR_ID_SK_TELESYS    0x1F53
+// Smartisan's USB Vendor ID
+#define VENDOR_ID_SMARTISAN     0x29a9
 // Sony's USB Vendor ID
 #define VENDOR_ID_SONY          0x054C
 // Sony Ericsson's USB Vendor ID
@@ -210,10 +216,12 @@ int builtInVendorIds[] = {
     VENDOR_ID_GARMIN_ASUS,
     VENDOR_ID_GIGABYTE,
     VENDOR_ID_GIGASET,
+    VENDOR_ID_GIONEE,
     VENDOR_ID_GOOGLE,
     VENDOR_ID_HAIER,
     VENDOR_ID_HARRIS,
     VENDOR_ID_HISENSE,
+    VENDOR_ID_HONEYWELL,
     VENDOR_ID_HP,
     VENDOR_ID_HTC,
     VENDOR_ID_HUAWEI,
@@ -252,6 +260,7 @@ int builtInVendorIds[] = {
     VENDOR_ID_SAMSUNG,
     VENDOR_ID_SHARP,
     VENDOR_ID_SK_TELESYS,
+    VENDOR_ID_SMARTISAN,
     VENDOR_ID_SONY,
     VENDOR_ID_SONY_ERICSSON,
     VENDOR_ID_T_AND_A,

@@ -30,7 +30,6 @@
 #include <sys/stat.h>
 #include <sys/poll.h>
 
-#include <log/logd.h>
 #include <log/logger.h>
 
 #include <cutils/sockets.h>
@@ -54,42 +53,32 @@ struct debugger_request_t {
   int32_t original_si_code;
 };
 
-static void wait_for_user_action(pid_t pid) {
+static void wait_for_user_action(const debugger_request_t &request) {
   // Find out the name of the process that crashed.
   char path[64];
-  snprintf(path, sizeof(path), "/proc/%d/exe", pid);
+  snprintf(path, sizeof(path), "/proc/%d/exe", request.pid);
 
   char exe[PATH_MAX];
   int count;
   if ((count = readlink(path, exe, sizeof(exe) - 1)) == -1) {
-    LOG("readlink('%s') failed: %s", path, strerror(errno));
+    ALOGE("readlink('%s') failed: %s", path, strerror(errno));
     strlcpy(exe, "unknown", sizeof(exe));
   } else {
     exe[count] = '\0';
   }
 
-  // Turn "/system/bin/app_process" into "app_process".
-  // gdbserver doesn't cope with full paths (though we should fix that
-  // and remove this).
-  char* name = strrchr(exe, '/');
-  if (name == NULL) {
-    name = exe; // No '/' found.
-  } else {
-    ++name; // Skip the '/'.
-  }
-
   // Explain how to attach the debugger.
-  LOG(    "********************************************************\n"
-          "* Process %d has been suspended while crashing.\n"
-          "* To attach gdbserver for a gdb connection on port 5039\n"
-          "* and start gdbclient:\n"
-          "*\n"
-          "*     gdbclient %s :5039 %d\n"
-          "*\n"
-          "* Wait for gdb to start, then press the VOLUME DOWN key\n"
-          "* to let the process continue crashing.\n"
-          "********************************************************\n",
-          pid, name, pid);
+  ALOGI("********************************************************\n"
+        "* Process %d has been suspended while crashing.\n"
+        "* To attach gdbserver for a gdb connection on port 5039\n"
+        "* and start gdbclient:\n"
+        "*\n"
+        "*     gdbclient %s :5039 %d\n"
+        "*\n"
+        "* Wait for gdb to start, then press the VOLUME DOWN key\n"
+        "* to let the process continue crashing.\n"
+        "********************************************************\n",
+        request.pid, exe, request.tid);
 
   // Wait for VOLUME DOWN.
   if (init_getevent() == 0) {
@@ -104,7 +93,7 @@ static void wait_for_user_action(pid_t pid) {
     uninit_getevent();
   }
 
-  LOG("debuggerd resuming process %d", pid);
+  ALOGI("debuggerd resuming process %d", request.pid);
 }
 
 static int get_process_info(pid_t tid, pid_t* out_pid, uid_t* out_uid, uid_t* out_gid) {
@@ -140,11 +129,11 @@ static int read_request(int fd, debugger_request_t* out_request) {
   socklen_t len = sizeof(cr);
   int status = getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &cr, &len);
   if (status != 0) {
-    LOG("cannot get credentials\n");
+    ALOGE("cannot get credentials\n");
     return -1;
   }
 
-  XLOG("reading tid\n");
+  ALOGV("reading tid\n");
   fcntl(fd, F_SETFL, O_NONBLOCK);
 
   pollfd pollfds[1];
@@ -153,7 +142,7 @@ static int read_request(int fd, debugger_request_t* out_request) {
   pollfds[0].revents = 0;
   status = TEMP_FAILURE_RETRY(poll(pollfds, 1, 3000));
   if (status != 1) {
-    LOG("timed out reading tid (from pid=%d uid=%d)\n", cr.pid, cr.uid);
+    ALOGE("timed out reading tid (from pid=%d uid=%d)\n", cr.pid, cr.uid);
     return -1;
   }
 
@@ -161,14 +150,11 @@ static int read_request(int fd, debugger_request_t* out_request) {
   memset(&msg, 0, sizeof(msg));
   status = TEMP_FAILURE_RETRY(read(fd, &msg, sizeof(msg)));
   if (status < 0) {
-    LOG("read failure? %s (pid=%d uid=%d)\n", strerror(errno), cr.pid, cr.uid);
+    ALOGE("read failure? %s (pid=%d uid=%d)\n", strerror(errno), cr.pid, cr.uid);
     return -1;
   }
-  if (status == sizeof(debugger_msg_t)) {
-    XLOG("crash request of size %d abort_msg_address=0x%" PRIPTR "\n",
-         status, msg.abort_msg_address);
-  } else {
-    LOG("invalid crash request of size %d (from pid=%d uid=%d)\n", status, cr.pid, cr.uid);
+  if (status != sizeof(debugger_msg_t)) {
+    ALOGE("invalid crash request of size %d (from pid=%d uid=%d)\n", status, cr.pid, cr.uid);
     return -1;
   }
 
@@ -186,7 +172,7 @@ static int read_request(int fd, debugger_request_t* out_request) {
     struct stat s;
     snprintf(buf, sizeof buf, "/proc/%d/task/%d", out_request->pid, out_request->tid);
     if (stat(buf, &s)) {
-      LOG("tid %d does not exist in pid %d. ignoring debug request\n",
+      ALOGE("tid %d does not exist in pid %d. ignoring debug request\n",
           out_request->tid, out_request->pid);
       return -1;
     }
@@ -197,7 +183,7 @@ static int read_request(int fd, debugger_request_t* out_request) {
     status = get_process_info(out_request->tid, &out_request->pid,
                               &out_request->uid, &out_request->gid);
     if (status < 0) {
-      LOG("tid %d does not exist. ignoring explicit dump request\n", out_request->tid);
+      ALOGE("tid %d does not exist. ignoring explicit dump request\n", out_request->tid);
       return -1;
     }
   } else {
@@ -218,13 +204,13 @@ static bool should_attach_gdb(debugger_request_t* request) {
 }
 
 static void handle_request(int fd) {
-  XLOG("handle_request(%d)\n", fd);
+  ALOGV("handle_request(%d)\n", fd);
 
   debugger_request_t request;
   memset(&request, 0, sizeof(request));
   int status = read_request(fd, &request);
   if (!status) {
-    XLOG("BOOM: pid=%d uid=%d gid=%d tid=%d\n",
+    ALOGV("BOOM: pid=%d uid=%d gid=%d tid=%d\n",
          request.pid, request.uid, request.gid, request.tid);
 
     // At this point, the thread that made the request is blocked in
@@ -238,12 +224,12 @@ static void handle_request(int fd) {
     // See details in bionic/libc/linker/debugger.c, in function
     // debugger_signal_handler().
     if (ptrace(PTRACE_ATTACH, request.tid, 0, 0)) {
-      LOG("ptrace attach failed: %s\n", strerror(errno));
+      ALOGE("ptrace attach failed: %s\n", strerror(errno));
     } else {
       bool detach_failed = false;
       bool attach_gdb = should_attach_gdb(&request);
       if (TEMP_FAILURE_RETRY(write(fd, "\0", 1)) != 1) {
-        LOG("failed responding to client: %s\n", strerror(errno));
+        ALOGE("failed responding to client: %s\n", strerror(errno));
       } else {
         char* tombstone_path = NULL;
 
@@ -262,20 +248,20 @@ static void handle_request(int fd) {
           switch (signal) {
             case SIGSTOP:
               if (request.action == DEBUGGER_ACTION_DUMP_TOMBSTONE) {
-                XLOG("stopped -- dumping to tombstone\n");
+                ALOGV("stopped -- dumping to tombstone\n");
                 tombstone_path = engrave_tombstone(request.pid, request.tid,
                                                    signal, request.original_si_code,
-                                                   request.abort_msg_address, true, true,
+                                                   request.abort_msg_address, true,
                                                    &detach_failed, &total_sleep_time_usec);
               } else if (request.action == DEBUGGER_ACTION_DUMP_BACKTRACE) {
-                XLOG("stopped -- dumping to fd\n");
+                ALOGV("stopped -- dumping to fd\n");
                 dump_backtrace(fd, -1, request.pid, request.tid, &detach_failed,
                                &total_sleep_time_usec);
               } else {
-                XLOG("stopped -- continuing\n");
+                ALOGV("stopped -- continuing\n");
                 status = ptrace(PTRACE_CONT, request.tid, 0, 0);
                 if (status) {
-                  LOG("ptrace continue failed: %s\n", strerror(errno));
+                  ALOGE("ptrace continue failed: %s\n", strerror(errno));
                 }
                 continue; // loop again
               }
@@ -291,7 +277,7 @@ static void handle_request(int fd) {
             case SIGSTKFLT:
 #endif
             case SIGTRAP:
-              XLOG("stopped -- fatal signal\n");
+              ALOGV("stopped -- fatal signal\n");
               // Send a SIGSTOP to the process to make all of
               // the non-signaled threads stop moving.  Without
               // this we get a lot of "ptrace detach failed:
@@ -301,13 +287,12 @@ static void handle_request(int fd) {
               // makes the process less reliable, apparently...
               tombstone_path = engrave_tombstone(request.pid, request.tid,
                                                  signal, request.original_si_code,
-                                                 request.abort_msg_address, !attach_gdb, false,
+                                                 request.abort_msg_address, !attach_gdb,
                                                  &detach_failed, &total_sleep_time_usec);
               break;
 
             default:
-              XLOG("stopped -- unexpected signal\n");
-              LOG("process stopped due to unexpected signal %d\n", signal);
+              ALOGE("process stopped due to unexpected signal %d\n", signal);
               break;
           }
           break;
@@ -323,14 +308,14 @@ static void handle_request(int fd) {
         free(tombstone_path);
       }
 
-      XLOG("detaching\n");
+      ALOGV("detaching\n");
       if (attach_gdb) {
         // stop the process so we can debug
         kill(request.pid, SIGSTOP);
 
         // detach so we can attach gdbserver
         if (ptrace(PTRACE_DETACH, request.tid, 0, 0)) {
-          LOG("ptrace detach from %d failed: %s\n", request.tid, strerror(errno));
+          ALOGE("ptrace detach from %d failed: %s\n", request.tid, strerror(errno));
           detach_failed = true;
         }
 
@@ -338,11 +323,11 @@ static void handle_request(int fd) {
         // for user action for the crashing process.
         // in this case, we log a message and turn the debug LED on
         // waiting for a gdb connection (for instance)
-        wait_for_user_action(request.pid);
+        wait_for_user_action(request);
       } else {
         // just detach
         if (ptrace(PTRACE_DETACH, request.tid, 0, 0)) {
-          LOG("ptrace detach from %d failed: %s\n", request.tid, strerror(errno));
+          ALOGE("ptrace detach from %d failed: %s\n", request.tid, strerror(errno));
           detach_failed = true;
         }
       }
@@ -354,7 +339,7 @@ static void handle_request(int fd) {
       // actual parent won't receive a death notification via wait(2).  At this point
       // there's not much we can do about that.
       if (detach_failed) {
-        LOG("debuggerd committing suicide to free the zombie!\n");
+        ALOGE("debuggerd committing suicide to free the zombie!\n");
         kill(getpid(), SIGKILL);
       }
     }
@@ -400,16 +385,16 @@ static int do_server() {
     return 1;
   fcntl(s, F_SETFD, FD_CLOEXEC);
 
-  LOG("debuggerd: " __DATE__ " " __TIME__ "\n");
+  ALOGI("debuggerd: " __DATE__ " " __TIME__ "\n");
 
   for (;;) {
     sockaddr addr;
     socklen_t alen = sizeof(addr);
 
-    XLOG("waiting for connection\n");
+    ALOGV("waiting for connection\n");
     int fd = accept(s, &addr, &alen);
     if (fd < 0) {
-      XLOG("accept failed: %s\n", strerror(errno));
+      ALOGV("accept failed: %s\n", strerror(errno));
       continue;
     }
 

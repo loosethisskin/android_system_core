@@ -33,9 +33,6 @@
 #include <cutils/iosched_policy.h>
 #include <cutils/list.h>
 
-#define _REALLY_INCLUDE_SYS__SYSTEM_PROPERTIES_H_
-#include <sys/_system_properties.h>
-
 static list_declare(service_list);
 static list_declare(action_list);
 static list_declare(action_queue);
@@ -120,6 +117,7 @@ static int lookup_keyword(const char *s)
     case 'l':
         if (!strcmp(s, "oglevel")) return K_loglevel;
         if (!strcmp(s, "oad_persist_props")) return K_load_persist_props;
+        if (!strcmp(s, "oad_all_props")) return K_load_all_props;
         break;
     case 'm':
         if (!strcmp(s, "kdir")) return K_mkdir;
@@ -583,6 +581,7 @@ void queue_builtin_action(int (*func)(int nargs, char **args), char *name)
     cmd = calloc(1, sizeof(*cmd));
     cmd->func = func;
     cmd->args[0] = name;
+    cmd->nargs = 1;
     list_add_tail(&act->commands, &cmd->clist);
 
     list_add_tail(&action_list, &act->alist);
@@ -869,6 +868,8 @@ static void parse_line_action(struct parse_state* state, int nargs, char **args)
     }
     cmd = malloc(sizeof(*cmd) + sizeof(char*) * nargs);
     cmd->func = kw_func(kw);
+    cmd->line = state->line;
+    cmd->filename = state->filename;
     cmd->nargs = nargs;
     memcpy(cmd->args, args, sizeof(char*) * nargs);
     list_add_tail(&act->commands, &cmd->clist);

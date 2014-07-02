@@ -21,6 +21,7 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <signal.h>
+#include <selinux/selinux.h>
 
 #include <private/android_filesystem_config.h>
 
@@ -76,6 +77,10 @@ int ueventd_main(int argc, char **argv)
     }
 #endif
 
+    union selinux_callback cb;
+    cb.func_log = log_callback;
+    selinux_set_callback(SELINUX_CB_LOG, cb);
+
     INFO("starting ueventd\n");
 
     /* Respect hardware passed in through the kernel cmd line. Here we will look
@@ -122,6 +127,7 @@ void set_device_permission(int nargs, char **args)
     uid_t uid;
     gid_t gid;
     int prefix = 0;
+    int wildcard = 0;
     char *endptr;
     int ret;
     char *tmp = 0;
@@ -154,9 +160,13 @@ void set_device_permission(int nargs, char **args)
         name = tmp;
     } else {
         int len = strlen(name);
-        if (name[len - 1] == '*') {
+        char *wildcard_chr = strchr(name, '*');
+        if ((name[len - 1] == '*') &&
+            (wildcard_chr == (name + len - 1))) {
             prefix = 1;
             name[len - 1] = '\0';
+        } else if (wildcard_chr) {
+            wildcard = 1;
         }
     }
 
@@ -183,6 +193,6 @@ void set_device_permission(int nargs, char **args)
     }
     gid = ret;
 
-    add_dev_perms(name, attr, perm, uid, gid, prefix);
+    add_dev_perms(name, attr, perm, uid, gid, prefix, wildcard);
     free(tmp);
 }

@@ -135,7 +135,9 @@ build_type := target
 build_target := SHARED_LIBRARY
 include $(LOCAL_PATH)/Android.build.mk
 build_type := host
+libbacktrace_libc++_multilib := both
 include $(LOCAL_PATH)/Android.build.mk
+libbacktrace_libc++_multilib :=
 endif
 
 #-------------------------------------------------------------------------
@@ -207,5 +209,24 @@ LOCAL_SRC_FILES := \
 	BacktraceMap.cpp \
 
 include $(BUILD_HOST_SHARED_LIBRARY)
+
+# Don't build for unbundled branches
+ifeq (,$(TARGET_BUILD_APPS))
+#-------------------------------------------------------------------------
+# The libbacktrace library (libc++)
+#-------------------------------------------------------------------------
+include $(CLEAR_VARS)
+
+LOCAL_MODULE := libbacktrace_libc++
+LOCAL_MODULE_TAGS := optional
+
+LOCAL_SRC_FILES := \
+	BacktraceMap.cpp \
+
+LOCAL_MULTILIB := both
+
+include $(BUILD_HOST_SHARED_LIBRARY)
+
+endif # TARGET_BUILD_APPS
 
 endif # HOST_OS-darwin
